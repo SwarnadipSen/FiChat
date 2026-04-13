@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { Plus, Search, LogOut, Hash, ChevronUp, UserCircle, X } from 'lucide-react';
+import { Plus, Search, LogOut, Hash, ChevronUp, UserCircle, X, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
@@ -37,6 +37,9 @@ export default function ChatSidebar({ onClose, onRoomSelect }: ChatSidebarProps)
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isJoinOpen, setIsJoinOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  const formatMemberCount = (count: number) =>
+    new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 0 }).format(count);
 
   useEffect(() => {
     loadRooms();
@@ -134,24 +137,31 @@ export default function ChatSidebar({ onClose, onRoomSelect }: ChatSidebarProps)
                 <button
                   key={room.id}
                   onClick={() => handleRoomClick(room.id)}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
+                  className={`group w-full flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-all ${
                     activeRoomId === room.id
-                      ? 'bg-zinc-800 text-zinc-50'
-                      : 'text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-50'
+                      ? 'border-zinc-700 bg-zinc-800/80 text-zinc-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]'
+                      : 'border-transparent text-zinc-400 hover:border-zinc-800 hover:bg-zinc-800/60 hover:text-zinc-50'
                   }`}
                 >
                   <div className="shrink-0">
-                    <div className="w-10 h-10 rounded-lg bg-zinc-800 flex items-center justify-center">
-                      <Hash className="h-5 w-5 text-zinc-400" />
+                    <div
+                      className={`flex h-10 w-10 items-center justify-center rounded-lg transition-colors ${
+                        activeRoomId === room.id
+                          ? 'bg-zinc-700/80'
+                          : 'bg-zinc-800 group-hover:bg-zinc-700/70'
+                      }`}
+                    >
+                      <Hash className="h-5 w-5 text-zinc-400 group-hover:text-zinc-300" />
                     </div>
                   </div>
                   <div className="flex-1 text-left min-w-0">
-                    <div className="font-medium truncate">{room.name}</div>
+                    <div className="truncate font-medium">{room.name}</div>
                     {/* <div className="text-xs text-zinc-500">{room.code}</div> */}
                   </div>
                   {room.memberCount && (
-                    <div className="text-xs text-zinc-500">
-                      {room.memberCount} {room.memberCount === 1 ? 'member' : 'members'}
+                    <div className="inline-flex items-center gap-1 rounded-full border border-zinc-700/80 bg-zinc-900/80 px-2 py-1 text-[11px] font-medium text-zinc-300">
+                      <Users className="h-3 w-3" />
+                      <span>{formatMemberCount(room.memberCount)}</span>
                     </div>
                   )}
                 </button>
