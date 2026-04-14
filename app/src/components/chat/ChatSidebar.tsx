@@ -1,31 +1,19 @@
-"use client";
+'use client';
 
-import { useEffect, useRef, useState } from "react";
-import { useRouter, usePathname } from "next/navigation";
-import {
-  Check,
-  Plus,
-  Search,
-  LogOut,
-  Hash,
-  Copy,
-  ChevronUp,
-  UserCircle,
-  X,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
-import { useAuthStore } from "@/store/authStore";
-import { useChatStore } from "@/store/chatStore";
-import { roomAPI } from "@/lib/apiService";
-import { Message } from "@/lib/types";
-import { toast } from "sonner";
-import CreateRoomDialog from "./CreateRoomDialog";
-import JoinRoomDialog from "./JoinRoomDialog";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { getInitials, getRandomAvatarUrl } from "@/lib/avatar";
-import { useSocket } from "@/providers/SocketProvider";
+import { useEffect, useState } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
+import { Plus, Search, LogOut, Hash, ChevronUp, UserCircle, X, Users } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
+import { useAuthStore } from '@/store/authStore';
+import { useChatStore } from '@/store/chatStore';
+import { roomAPI } from '@/lib/apiService';
+import { toast } from 'sonner';
+import CreateRoomDialog from './CreateRoomDialog';
+import JoinRoomDialog from './JoinRoomDialog';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { getInitials, getRandomAvatarUrl } from '@/lib/avatar';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -65,6 +53,9 @@ export default function ChatSidebar({
   const [copiedRoomId, setCopiedRoomId] = useState<string | null>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const joinedRoomIdsRef = useRef(new Set<string>());
+
+  const formatMemberCount = (count: number) =>
+    new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 0 }).format(count);
 
   useEffect(() => {
     loadRooms();
@@ -235,63 +226,32 @@ export default function ChatSidebar({
               rooms.map((room) => (
                 <div
                   key={room.id}
-                  title={room.name}
-                  className={`group relative w-full flex items-start ${isCompact ? "gap-2 px-2 py-2" : "gap-3 px-3 py-2.5"} rounded-xl transition-colors border-l-[3px] ${
+                  onClick={() => handleRoomClick(room.id)}
+                  className={`group w-full flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-all ${
                     activeRoomId === room.id
-                      ? "border-emerald-500 bg-slate-800/90 text-zinc-50 shadow-[inset_0_0_0_1px_rgba(71,85,105,0.5)]"
-                      : "border-transparent text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-50"
+                      ? 'border-zinc-700 bg-zinc-800/80 text-zinc-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]'
+                      : 'border-transparent text-zinc-400 hover:border-zinc-800 hover:bg-zinc-800/60 hover:text-zinc-50'
                   }`}
                 >
-                  <button
-                    type="button"
-                    onClick={() => handleRoomClick(room.id)}
-                    className="flex min-w-0 flex-1 items-start gap-3 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60"
-                    title={room.name}
-                    aria-label={`Open room ${room.name}`}
-                  >
-                    <div className="shrink-0">
-                      <div
-                        className={`${isCompact ? "w-8 h-8" : "w-10 h-10"} rounded-lg bg-zinc-800 flex items-center justify-center`}
-                      >
-                        <Hash
-                          className={`${isCompact ? "h-4 w-4" : "h-5 w-5"} text-zinc-400`}
-                        />
-                      </div>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div
-                        className={`${isCompact ? "text-xs" : "text-sm"} leading-snug ${isCompact ? "truncate" : "whitespace-normal wrap-break-word"} ${
-                          activeRoomId === room.id
-                            ? "font-semibold"
-                            : "font-medium"
-                        }`}
-                      >
-                        {room.name}
-                      </div>
-                      {!isCompact && (
-                        <div className="mt-1 truncate text-[11px] text-zinc-500">
-                          {lastMessageByRoom[room.id]?.text
-                            ? `${lastMessageByRoom[room.id]?.senderUsername}: ${lastMessageByRoom[room.id]?.text}`
-                            : `Code: ${room.code}`}
-                        </div>
-                      )}
-                    </div>
-                  </button>
-                  {!isCompact && room.memberCount && (
-                    <div className="text-xs text-zinc-500 pt-1 shrink-0">
-                      {room.memberCount}{" "}
-                      {room.memberCount === 1 ? "member" : "members"}
-                    </div>
-                  )}
-
-                  {!!unreadCounts[room.id] && unreadCounts[room.id] > 0 && (
+                  <div className="shrink-0">
                     <div
-                      className="mt-0.5 inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 px-1.5 text-[11px] font-semibold text-emerald-300"
-                      aria-label={`${unreadCounts[room.id]} unread messages`}
+                      className={`flex h-10 w-10 items-center justify-center rounded-lg transition-colors ${
+                        activeRoomId === room.id
+                          ? 'bg-zinc-700/80'
+                          : 'bg-zinc-800 group-hover:bg-zinc-700/70'
+                      }`}
                     >
-                      {unreadCounts[room.id] > 99
-                        ? "99+"
-                        : unreadCounts[room.id]}
+                      <Hash className="h-5 w-5 text-zinc-400 group-hover:text-zinc-300" />
+                    </div>
+                  </div>
+                  <div className="flex-1 text-left min-w-0">
+                    <div className="truncate font-medium">{room.name}</div>
+                    {/* <div className="text-xs text-zinc-500">{room.code}</div> */}
+                  </div>
+                  {room.memberCount && (
+                    <div className="inline-flex items-center gap-1 rounded-full border border-zinc-700/80 bg-zinc-900/80 px-2 py-1 text-[11px] font-medium text-zinc-300">
+                      <Users className="h-3 w-3" />
+                      <span>{formatMemberCount(room.memberCount)}</span>
                     </div>
                   )}
 
