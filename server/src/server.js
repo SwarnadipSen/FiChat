@@ -10,15 +10,28 @@ async function startServer() {
     throw new Error("JWT_SECRET is missing in environment variables.");
   }
 
+  const allowedOrigins = new Set([
+    ...env.frontendOrigins,
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+  ]);
+
   await connectDatabase();
 
   const server = http.createServer(app);
 
   const io = new Server(server, {
     cors: {
-      origin: env.frontendOrigin,
-      credentials: true
-    }
+      origin(origin, callback) {
+        if (!origin || allowedOrigins.has(origin)) {
+          callback(null, true);
+          return;
+        }
+
+        callback(new Error(`CORS origin not allowed: ${origin}`));
+      },
+      credentials: true,
+    },
   });
 
   setupSocket(io);

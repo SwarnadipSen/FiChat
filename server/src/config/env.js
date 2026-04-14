@@ -7,7 +7,11 @@ const env = {
   mongodbUri: process.env.MONGODB_URI,
   mongodbDbName: process.env.MONGODB_DB_NAME,
   jwtSecret: process.env.JWT_SECRET,
-  frontendOrigin: process.env.FRONTEND_ORIGIN || "http://localhost:3000"
+  frontendOrigin: process.env.FRONTEND_ORIGIN || "http://localhost:3000",
+  frontendOrigins: (process.env.FRONTEND_ORIGIN || "http://localhost:3000")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean),
 };
 
 module.exports = env;

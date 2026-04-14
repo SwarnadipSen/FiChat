@@ -33,7 +33,7 @@
 }
 
 :root {
-  --font-inter: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-inter: "Inter", system-ui, -apple-system, sans-serif;
   --radius: 0.5rem;
 }
 
@@ -62,15 +62,15 @@
   * {
     @apply border-border outline-ring/50;
   }
-  
+
   body {
     @apply bg-zinc-950 text-zinc-50 font-sans;
   }
-  
+
   html {
     @apply font-sans h-full;
   }
-  
+
   body {
     @apply h-full;
   }
@@ -80,11 +80,11 @@
   .scrollbar-thin::-webkit-scrollbar {
     width: 6px;
   }
-  
+
   .scrollbar-thin::-webkit-scrollbar-track {
     @apply bg-transparent;
   }
-  
+
   .scrollbar-thin::-webkit-scrollbar-thumb {
     @apply bg-zinc-700 rounded-full hover:bg-zinc-600;
   }
@@ -100,18 +100,56 @@
   }
 
   .message-markdown code {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-family:
+      ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+      "Courier New", monospace;
     font-size: 0.85em;
   }
 
   .message-codeblock {
-    background: #0b1220;
-    border: 1px solid rgb(63 63 70 / 0.8);
+    background: #0d1320;
+    border: 1px solid rgb(82 82 91 / 0.85);
   }
 
   .message-codeblock code {
     background: transparent;
     padding: 0;
     color: inherit;
+  }
+
+  .message-codeblock .hljs {
+    background: transparent;
+    color: #f3f4f6;
+  }
+
+  .message-codeblock .hljs-keyword,
+  .message-codeblock .hljs-selector-tag,
+  .message-codeblock .hljs-built_in,
+  .message-codeblock .hljs-name,
+  .message-codeblock .hljs-type,
+  .message-codeblock .hljs-title,
+  .message-codeblock .hljs-title.class_,
+  .message-codeblock .hljs-function .hljs-title {
+    color: #22d3ee;
+  }
+
+  .message-codeblock .hljs-string,
+  .message-codeblock .hljs-attr,
+  .message-codeblock .hljs-template-tag,
+  .message-codeblock .hljs-template-variable {
+    color: #f59e0b;
+  }
+
+  .message-codeblock .hljs-number,
+  .message-codeblock .hljs-literal,
+  .message-codeblock .hljs-symbol,
+  .message-codeblock .hljs-bullet {
+    color: #f97316;
+  }
+
+  .message-codeblock .hljs-comment,
+  .message-codeblock .hljs-quote {
+    color: #9ca3af;
+    font-style: italic;
   }
 }
