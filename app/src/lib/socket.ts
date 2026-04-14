@@ -1,6 +1,6 @@
-import { io, Socket } from 'socket.io-client';
+import { io, Socket } from "socket.io-client";
 
-const SOCKET_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+const SOCKET_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
 let socket: Socket | null = null;
 
@@ -12,6 +12,11 @@ export const initSocket = (token: string): Socket => {
   socket = io(SOCKET_URL, {
     auth: { token },
     autoConnect: true,
+    withCredentials: true,
+    transports: ["websocket", "polling"],
+    reconnection: true,
+    reconnectionAttempts: 5,
+    timeout: 10000,
   });
 
   return socket;

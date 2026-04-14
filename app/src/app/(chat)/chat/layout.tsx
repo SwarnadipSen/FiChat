@@ -1,18 +1,22 @@
-'use client';
+"use client";
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
-import { Menu } from 'lucide-react';
-import { useAuthStore } from '@/store/authStore';
-import ChatSidebar from '@/components/chat/ChatSidebar';
-import { Button } from '@/components/ui/button';
+import { useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { Menu } from "lucide-react";
+import { useAuthStore } from "@/store/authStore";
+import ChatSidebar from "@/components/chat/ChatSidebar";
+import { Button } from "@/components/ui/button";
 import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
-} from '@/components/ui/resizable';
+} from "@/components/ui/resizable";
 
-export default function ChatLayout({ children }: { children: React.ReactNode }) {
+export default function ChatLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const { isAuthenticated, initAuth } = useAuthStore();
@@ -21,7 +25,10 @@ export default function ChatLayout({ children }: { children: React.ReactNode }) 
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const mobileSidebarHistoryPushedRef = useRef(false);
 
-  const isRoomRoute = useMemo(() => Boolean(pathname?.match(/^\/chat\/[^/]+$/)), [pathname]);
+  const isRoomRoute = useMemo(
+    () => Boolean(pathname?.match(/^\/chat\/[^/]+$/)),
+    [pathname],
+  );
 
   useEffect(() => {
     initAuth();
@@ -30,21 +37,21 @@ export default function ChatLayout({ children }: { children: React.ReactNode }) 
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
-      router.push('/login');
+      router.push("/login");
     }
   }, [isLoading, isAuthenticated, router]);
 
   useEffect(() => {
-    const mediaQuery = window.matchMedia('(max-width: 767px)');
+    const mediaQuery = window.matchMedia("(max-width: 767px)");
     const syncViewport = () => {
       setIsMobile(mediaQuery.matches);
     };
 
     syncViewport();
-    mediaQuery.addEventListener('change', syncViewport);
+    mediaQuery.addEventListener("change", syncViewport);
 
     return () => {
-      mediaQuery.removeEventListener('change', syncViewport);
+      mediaQuery.removeEventListener("change", syncViewport);
     };
   }, []);
 
@@ -69,9 +76,9 @@ export default function ChatLayout({ children }: { children: React.ReactNode }) 
       mobileSidebarHistoryPushedRef.current = false;
     };
 
-    window.addEventListener('popstate', handlePopState);
+    window.addEventListener("popstate", handlePopState);
     return () => {
-      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener("popstate", handlePopState);
     };
   }, [isMobile]);
 
@@ -80,7 +87,11 @@ export default function ChatLayout({ children }: { children: React.ReactNode }) 
       return;
     }
 
-    window.history.pushState({ __mobileSidebar: true }, '', window.location.href);
+    window.history.pushState(
+      { __mobileSidebar: true },
+      "",
+      window.location.href,
+    );
     mobileSidebarHistoryPushedRef.current = true;
     setIsMobileSidebarOpen(true);
   };
@@ -96,7 +107,7 @@ export default function ChatLayout({ children }: { children: React.ReactNode }) 
 
   if (isLoading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-zinc-950">
+      <div className="flex h-dvh items-center justify-center bg-zinc-950">
         <div className="text-zinc-400">Loading...</div>
       </div>
     );
@@ -108,19 +119,25 @@ export default function ChatLayout({ children }: { children: React.ReactNode }) 
 
   return (
     <>
-      <div className="hidden h-screen md:block">
-        <ResizablePanelGroup orientation="horizontal" className="h-screen bg-zinc-950">
-          <ResizablePanel defaultSize="13%" minSize="12%" maxSize="38%">
+      <div className="hidden h-dvh md:block">
+        <ResizablePanelGroup
+          orientation="horizontal"
+          className="h-dvh bg-zinc-950"
+        >
+          <ResizablePanel defaultSize="20" minSize="16" maxSize="38">
             <ChatSidebar />
           </ResizablePanel>
-          <ResizableHandle withHandle className="bg-zinc-800/80 hover:bg-zinc-700" />
-          <ResizablePanel defaultSize="76%" minSize="62%">
+          <ResizableHandle
+            withHandle
+            className="bg-zinc-800/80 hover:bg-zinc-700"
+          />
+          <ResizablePanel defaultSize="80" minSize="62">
             <main className="flex h-full flex-col">{children}</main>
           </ResizablePanel>
         </ResizablePanelGroup>
       </div>
 
-      <div className="relative h-screen bg-zinc-950 md:hidden">
+      <div className="relative h-dvh bg-zinc-950 md:hidden">
         <main className="flex h-full flex-col">{children}</main>
 
         {isRoomRoute && !isMobileSidebarOpen && (
@@ -137,7 +154,9 @@ export default function ChatLayout({ children }: { children: React.ReactNode }) 
 
         <div
           className={`absolute inset-0 z-50 transition-opacity duration-300 ${
-            isMobileSidebarOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
+            isMobileSidebarOpen
+              ? "pointer-events-auto opacity-100"
+              : "pointer-events-none opacity-0"
           }`}
         >
           <div
@@ -146,11 +165,14 @@ export default function ChatLayout({ children }: { children: React.ReactNode }) 
             aria-hidden="true"
           />
           <div
-            className={`relative h-full w-full transition-transform duration-300 ease-out ${
-              isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-6'
+            className={`relative h-full w-[min(92vw,26rem)] max-w-full transition-transform duration-300 ease-out ${
+              isMobileSidebarOpen ? "translate-x-0" : "-translate-x-6"
             }`}
           >
-            <ChatSidebar onClose={closeMobileSidebar} onRoomSelect={closeMobileSidebar} />
+            <ChatSidebar
+              onClose={closeMobileSidebar}
+              onRoomSelect={closeMobileSidebar}
+            />
           </div>
         </div>
       </div>

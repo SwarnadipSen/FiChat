@@ -1,39 +1,135 @@
-'use client';
+"use client";
 
-import { useEffect, useRef, useState } from 'react';
-import { useParams } from 'next/navigation';
-import { Skeleton } from '@/components/ui/skeleton';
-import { useAuthStore } from '@/store/authStore';
-import { useChatStore } from '@/store/chatStore';
-import { useSocket } from '@/providers/SocketProvider';
-import { messageAPI } from '@/lib/apiService';
-import { toast } from 'sonner';
-import MessageInput from '@/components/chat/MessageInput';
-import { Message, PresenceUpdateEvent, RoomMember } from '@/lib/types';
-import { formatDistanceToNow } from 'date-fns';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { getInitials, getRandomAvatarUrl } from '@/lib/avatar';
-import { roomAPI } from '@/lib/apiService';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { Button } from '@/components/ui/button';
-import { Phone } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import rehypeHighlight from 'rehype-highlight';
-import { useCallStore } from '@/store/callStore';
+import { ReactNode, useEffect, useRef, useState } from "react";
+import { useParams } from "next/navigation";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useAuthStore } from "@/store/authStore";
+import { useChatStore } from "@/store/chatStore";
+import { useSocket } from "@/providers/SocketProvider";
+import { messageAPI } from "@/lib/apiService";
+import { toast } from "sonner";
+import MessageInput from "@/components/chat/MessageInput";
+import { Message, PresenceUpdateEvent, RoomMember } from "@/lib/types";
+import {
+  differenceInMinutes,
+  format,
+  formatDistanceToNow,
+  isToday,
+  isYesterday,
+} from "date-fns";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { getInitials, getRandomAvatarUrl } from "@/lib/avatar";
+import { roomAPI } from "@/lib/apiService";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Button } from "@/components/ui/button";
+import { Check, Copy, Phone } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeHighlight from "rehype-highlight";
+import { useCallStore } from "@/store/callStore";
+
+function extractCodeText(node: ReactNode): string {
+  if (typeof node === "string") {
+    return node;
+  }
+
+  if (typeof node === "number") {
+    return String(node);
+  }
+
+  if (Array.isArray(node)) {
+    return node.map(extractCodeText).join("");
+  }
+
+  if (node && typeof node === "object" && "props" in node) {
+    return extractCodeText(
+      (node as { props?: { children?: ReactNode } }).props?.children ?? "",
+    );
+  }
+
+  return "";
+}
+
+function CopyableCodeBlock({ children }: { children: ReactNode }) {
+  const [copied, setCopied] = useState(false);
+
+  const firstChild = Array.isArray(children) ? children[0] : children;
+  const codeClassName =
+    firstChild && typeof firstChild === "object" && "props" in firstChild
+      ? ((firstChild as { props?: { className?: string } }).props?.className ??
+        "")
+      : "";
+  const classTokens = codeClassName.split(" ").map((token) => token.trim());
+  const languageToken = classTokens.find((token) =>
+    token.startsWith("language-"),
+  );
+  const language = languageToken
+    ? languageToken.replace("language-", "")
+    : "code";
+  const codeText = extractCodeText(children).replace(/\n$/, "");
+
+  const handleCopy = async () => {
+    if (!codeText) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(codeText);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch {
+      toast.error("Failed to copy code");
+    }
+  };
+
+  return (
+    <div className="my-2 overflow-hidden rounded-2xl border border-zinc-700 bg-zinc-950/90">
+      <div className="group/codebar flex items-center justify-between border-b border-zinc-700/90 bg-zinc-900/80 px-3 py-1.5">
+        <span className="text-[11px] font-medium tracking-wide text-zinc-300">
+          {language}
+        </span>
+        <button
+          type="button"
+          onClick={handleCopy}
+          className="inline-flex items-center gap-1.5 rounded-md border border-zinc-700 bg-zinc-900/70 px-2 py-1 text-[11px] font-medium text-zinc-200 transition-all hover:bg-zinc-800 hover:text-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 md:opacity-0 md:group-hover/codebar:opacity-100 md:group-focus-within/codebar:opacity-100"
+        >
+          {copied ? (
+            <Check className="h-3.5 w-3.5" />
+          ) : (
+            <Copy className="h-3.5 w-3.5" />
+          )}
+          {copied ? "Copied" : "Copy"}
+        </button>
+      </div>
+      <pre className="message-codeblock overflow-x-auto p-3">{children}</pre>
+    </div>
+  );
+}
 
 export default function RoomPage() {
   const params = useParams();
   const roomId = params?.roomId as string;
-  
+
   const { user } = useAuthStore();
-  const { rooms, messages, setMessages, addMessage, prependMessages } = useChatStore();
+  const {
+    rooms,
+    messages,
+    setMessages,
+    addMessage,
+    prependMessages,
+    markRoomRead,
+  } = useChatStore();
   const { socket, isConnected } = useSocket();
-  
+
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
+  const [isRoomCodeCopied, setIsRoomCodeCopied] = useState(false);
   const [members, setMembers] = useState<RoomMember[]>([]);
   const [onlineUserIds, setOnlineUserIds] = useState<string[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -48,22 +144,26 @@ export default function RoomPage() {
     syncRoomMembers,
     syncOnlineUserIds,
   } = useCallStore();
-  
+
   const room = rooms.find((r) => r.id === roomId);
   const roomMessages = messages[roomId] || [];
   const isCallActive = callStartedAt !== null;
   const isCurrentRoomCallActive = isCallActive && activeRoomId === roomId;
-  const isInCall = !!user?.id && isCurrentRoomCallActive && callParticipantIds.includes(user.id);
+  const isInCall =
+    !!user?.id &&
+    isCurrentRoomCallActive &&
+    callParticipantIds.includes(user.id);
 
   useEffect(() => {
     if (roomId) {
       setCurrentPage(1);
       setHasMoreMessages(false);
       shouldStickToBottomRef.current = true;
+      markRoomRead(roomId);
       loadMessages();
       loadMembers();
     }
-  }, [roomId]);
+  }, [roomId, markRoomRead]);
 
   useEffect(() => {
     if (!roomId) {
@@ -94,7 +194,9 @@ export default function RoomPage() {
           toast.info(`${data.username} joined the room`);
 
           setMembers((prev) => {
-            const alreadyExists = prev.some((member) => member.id === data.userId);
+            const alreadyExists = prev.some(
+              (member) => member.id === data.userId,
+            );
             if (alreadyExists) {
               return prev;
             }
@@ -122,25 +224,25 @@ export default function RoomPage() {
       };
 
       // Join room via socket
-      socket.emit('join_room', { roomId });
+      socket.emit("join_room", { roomId });
 
       // Listen for new messages
-      socket.on('receive_message', handleReceiveMessage);
+      socket.on("receive_message", handleReceiveMessage);
 
       // Listen for user joined events
-      socket.on('user_joined', handleUserJoined);
+      socket.on("user_joined", handleUserJoined);
 
       // Listen for socket errors
-      socket.on('socket_error', handleSocketError);
+      socket.on("socket_error", handleSocketError);
 
       // Listen for online presence updates
-      socket.on('presence_update', handlePresenceUpdate);
+      socket.on("presence_update", handlePresenceUpdate);
 
       return () => {
-        socket.off('receive_message', handleReceiveMessage);
-        socket.off('user_joined', handleUserJoined);
-        socket.off('socket_error', handleSocketError);
-        socket.off('presence_update', handlePresenceUpdate);
+        socket.off("receive_message", handleReceiveMessage);
+        socket.off("user_joined", handleUserJoined);
+        socket.off("socket_error", handleSocketError);
+        socket.off("presence_update", handlePresenceUpdate);
       };
     }
   }, [socket, roomId, user?.id]);
@@ -159,7 +261,7 @@ export default function RoomPage() {
       setCurrentPage(1);
       setHasMoreMessages(data.pagination.hasMore);
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to load messages');
+      toast.error(error.response?.data?.error || "Failed to load messages");
     } finally {
       setIsLoading(false);
     }
@@ -193,10 +295,13 @@ export default function RoomPage() {
         if (!scrollRef.current) return;
 
         const newScrollHeight = scrollRef.current.scrollHeight;
-        scrollRef.current.scrollTop = newScrollHeight - previousScrollHeight + previousScrollTop;
+        scrollRef.current.scrollTop =
+          newScrollHeight - previousScrollHeight + previousScrollTop;
       });
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to load older messages');
+      toast.error(
+        error.response?.data?.error || "Failed to load older messages",
+      );
     } finally {
       setIsLoadingOlder(false);
     }
@@ -209,7 +314,9 @@ export default function RoomPage() {
     }
 
     const nearTop = container.scrollTop <= 64;
-    const nearBottom = container.scrollHeight - (container.scrollTop + container.clientHeight) <= 120;
+    const nearBottom =
+      container.scrollHeight - (container.scrollTop + container.clientHeight) <=
+      120;
 
     shouldStickToBottomRef.current = nearBottom;
 
@@ -223,7 +330,7 @@ export default function RoomPage() {
       const data = await roomAPI.getRoomMembers(roomId);
       setMembers(data.members);
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to load room members');
+      toast.error(error.response?.data?.error || "Failed to load room members");
     }
   };
 
@@ -235,10 +342,37 @@ export default function RoomPage() {
 
   const handleSendMessage = (text: string) => {
     if (socket && isConnected) {
-      socket.emit('send_message', { roomId, text });
+      socket.emit("send_message", { roomId, text });
     } else {
-      toast.error('Not connected to server');
+      toast.error("Not connected. Reconnect and retry sending.");
     }
+  };
+
+  const formatDayLabel = (value: string) => {
+    const date = new Date(value);
+
+    if (isToday(date)) {
+      return "Today";
+    }
+
+    if (isYesterday(date)) {
+      return "Yesterday";
+    }
+
+    return format(date, "MMM d, yyyy");
+  };
+
+  const getMessageTimestamp = (message: Message) => {
+    return message.createdAt || message.timestamp || new Date().toISOString();
+  };
+
+  const retryConnection = () => {
+    if (!socket) {
+      return;
+    }
+
+    socket.connect();
+    toast.info("Reconnecting...");
   };
 
   const startDummyCall = () => {
@@ -247,6 +381,16 @@ export default function RoomPage() {
 
   const leaveDummyCall = () => {
     leaveCall(user?.id ?? null);
+  };
+
+  const handleCopyRoomCode = async () => {
+    try {
+      await navigator.clipboard.writeText(room.code);
+      setIsRoomCodeCopied(true);
+      window.setTimeout(() => setIsRoomCodeCopied(false), 1200);
+    } catch {
+      toast.error("Failed to copy room code");
+    }
   };
 
   if (!room) {
@@ -260,13 +404,53 @@ export default function RoomPage() {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Room Header */}
-      <div className="shrink-0 px-6 py-4 border-b border-zinc-800 bg-zinc-900">
-        <div className="flex items-center justify-between">
+      <div className="shrink-0 border-b border-zinc-800 bg-zinc-900 px-3 py-3 sm:px-6 sm:py-4">
+        <div className="flex items-start justify-between gap-3 sm:items-center">
           <div>
-            <h2 className="text-xl font-bold text-zinc-50">{room.name}</h2>
-            <p className="text-sm text-zinc-400">Code: {room.code}</p>
+            <h2 className="text-lg font-bold text-zinc-50 sm:text-xl wrap-break-word">
+              {room.name}
+            </h2>
+            <div className="group/roomcode mt-1 flex items-center gap-1.5 text-sm text-zinc-400">
+              <span>
+                Code:{" "}
+                <span className="font-medium text-zinc-300">{room.code}</span>
+              </span>
+              <button
+                type="button"
+                onClick={handleCopyRoomCode}
+                className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-zinc-700 bg-zinc-800/70 text-zinc-300 transition-all hover:bg-zinc-700 hover:text-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 md:opacity-0 md:group-hover/roomcode:opacity-100 md:group-focus-within/roomcode:opacity-100"
+                aria-label="Copy room code"
+                title={isRoomCodeCopied ? "Copied" : "Copy room code"}
+              >
+                {isRoomCodeCopied ? (
+                  <Check className="h-3.5 w-3.5" />
+                ) : (
+                  <Copy className="h-3.5 w-3.5" />
+                )}
+              </button>
+            </div>
+            <div className="mt-2 flex items-center gap-2">
+              <span
+                className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                  isConnected
+                    ? "bg-emerald-500/20 text-emerald-300"
+                    : "bg-amber-500/20 text-amber-300"
+                }`}
+              >
+                {isConnected ? "Connected" : "Reconnecting"}
+              </span>
+              {!isConnected && (
+                <button
+                  type="button"
+                  onClick={retryConnection}
+                  className="rounded-md border border-zinc-700 px-2 py-0.5 text-[11px] text-zinc-300 transition-colors hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60"
+                >
+                  Retry
+                </button>
+              )}
+            </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <div className="flex items-center gap-2">
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -275,32 +459,47 @@ export default function RoomPage() {
                     size="icon"
                     variant="outline"
                     className={`border-0 text-zinc-100 hover:bg-zinc-700 ${
-                      isInCall ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-zinc-800'
+                      isInCall
+                        ? "bg-emerald-600 hover:bg-emerald-500"
+                        : "bg-zinc-800"
                     }`}
                     onClick={isInCall ? leaveDummyCall : startDummyCall}
                   >
                     <Phone className="size-4" />
                     <span className="sr-only">
-                      {isInCall ? 'Leave voice call' : isCurrentRoomCallActive ? 'Join voice call' : 'Start voice call'}
+                      {isInCall
+                        ? "Leave voice call"
+                        : isCurrentRoomCallActive
+                          ? "Join voice call"
+                          : "Start voice call"}
                     </span>
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" sideOffset={8}>
-                  {isInCall ? 'Leave Call' : isCurrentRoomCallActive ? 'Join Call' : 'Start Call'}
+                  {isInCall
+                    ? "Leave Call"
+                    : isCurrentRoomCallActive
+                      ? "Join Call"
+                      : "Start Call"}
                 </TooltipContent>
               </Tooltip>
             </div>
-            <div className="flex -space-x-2">
+            <div className="hidden -space-x-2 sm:flex">
               {members.slice(0, 5).map((member) => (
                 <Tooltip key={member.id}>
                   <TooltipTrigger asChild>
                     <div className="relative">
-                      <Avatar size="sm" className="border border-zinc-800 cursor-default">
+                      <Avatar
+                        size="sm"
+                        className="border border-zinc-800 cursor-default"
+                      >
                         <AvatarImage
                           src={getRandomAvatarUrl(member.id || member.username)}
                           alt={member.username}
                         />
-                        <AvatarFallback>{getInitials(member.username)}</AvatarFallback>
+                        <AvatarFallback>
+                          {getInitials(member.username)}
+                        </AvatarFallback>
                       </Avatar>
                       {onlineUserIds.includes(member.id) && (
                         <span className="absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full bg-emerald-400 ring-2 ring-zinc-900" />
@@ -314,7 +513,7 @@ export default function RoomPage() {
               ))}
             </div>
             <span className="text-xs text-zinc-400 whitespace-nowrap">
-              {members.length} {members.length === 1 ? 'member' : 'members'}
+              {members.length} {members.length === 1 ? "member" : "members"}
             </span>
             {isCurrentRoomCallActive && (
               <span className="rounded-full bg-emerald-500/20 px-2 py-1 text-[11px] font-medium text-emerald-300">
@@ -326,13 +525,15 @@ export default function RoomPage() {
       </div>
 
       {/* Messages Area */}
-      <div 
+      <div
         ref={scrollRef}
         onScroll={handleMessagesScroll}
-        className="flex-1 overflow-y-auto px-6 py-4 scrollbar-thin"
+        className="flex-1 overflow-y-auto px-3 py-3 scrollbar-thin sm:px-6 sm:py-4"
       >
         {isLoadingOlder && (
-          <div className="pb-3 text-center text-xs text-zinc-500">Loading older messages...</div>
+          <div className="pb-3 text-center text-xs text-zinc-500">
+            Loading older messages...
+          </div>
         )}
         {isLoading ? (
           <div className="space-y-4">
@@ -348,78 +549,130 @@ export default function RoomPage() {
           </div>
         ) : roomMessages.length === 0 ? (
           <div className="flex h-full items-center justify-center">
-            <p className="text-zinc-400">No messages yet. Start the conversation!</p>
+            <p className="text-zinc-400">
+              No messages yet. Start the conversation!
+            </p>
           </div>
         ) : (
           <div className="space-y-4">
-            {roomMessages.map((message) => {
+            {roomMessages.map((message, index) => {
               const isOwnMessage = message.senderId === user?.id;
-              const timestamp = message.createdAt || message.timestamp;
-              
+              const timestamp = getMessageTimestamp(message);
+              const previousMessage =
+                index > 0 ? roomMessages[index - 1] : null;
+              const previousTimestamp = previousMessage
+                ? getMessageTimestamp(previousMessage)
+                : null;
+              const showDateSeparator =
+                !previousTimestamp ||
+                format(new Date(previousTimestamp), "yyyy-MM-dd") !==
+                  format(new Date(timestamp), "yyyy-MM-dd");
+              const isMessageGrouped =
+                !!previousMessage &&
+                previousMessage.senderId === message.senderId &&
+                differenceInMinutes(
+                  new Date(timestamp),
+                  new Date(previousTimestamp || timestamp),
+                ) < 5 &&
+                !showDateSeparator;
+
               return (
-                <div
-                  key={message.id}
-                  className={`flex gap-3 ${isOwnMessage ? 'flex-row-reverse' : ''}`}
-                >
-                  <div className="shrink-0">
-                    <Avatar size="lg">
-                      <AvatarImage
-                        src={getRandomAvatarUrl(message.senderId || message.senderUsername)}
-                        alt={message.senderUsername}
-                      />
-                      <AvatarFallback>{getInitials(message.senderUsername)}</AvatarFallback>
-                    </Avatar>
-                  </div>
-                  <div className={`flex flex-col ${isOwnMessage ? 'items-end' : 'items-start'} max-w-[70%]`}>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm font-medium text-zinc-300">
-                        {message.senderUsername}
+                <div key={message.id}>
+                  {showDateSeparator && (
+                    <div className="my-4 flex items-center gap-3">
+                      <div className="h-px flex-1 bg-zinc-800" />
+                      <span className="text-[11px] font-medium text-zinc-500">
+                        {formatDayLabel(timestamp)}
                       </span>
-                      <span className="text-xs text-zinc-500">
-                        {timestamp && formatDistanceToNow(new Date(timestamp), { addSuffix: true })}
-                      </span>
+                      <div className="h-px flex-1 bg-zinc-800" />
+                    </div>
+                  )}
+                  <div
+                    className={`flex ${isMessageGrouped ? "gap-2" : "gap-3"} ${isOwnMessage ? "flex-row-reverse" : ""}`}
+                  >
+                    <div className="shrink-0">
+                      {isMessageGrouped ? (
+                        <div className="h-10 w-10" aria-hidden="true" />
+                      ) : (
+                        <Avatar size="lg">
+                          <AvatarImage
+                            src={getRandomAvatarUrl(
+                              message.senderId || message.senderUsername,
+                            )}
+                            alt={message.senderUsername}
+                          />
+                          <AvatarFallback>
+                            {getInitials(message.senderUsername)}
+                          </AvatarFallback>
+                        </Avatar>
+                      )}
                     </div>
                     <div
-                      className={`px-4 py-2 rounded-2xl ${
-                        isOwnMessage
-                          ? 'bg-emerald-600 text-white'
-                          : 'bg-zinc-800 text-zinc-50'
-                      }`}
+                      className={`flex flex-col ${isOwnMessage ? "items-end" : "items-start"} max-w-[85%] sm:max-w-[75%] lg:max-w-[70%]`}
                     >
+                      {!isMessageGrouped && (
+                        <div className="mb-1 flex items-center gap-2">
+                          <span className="text-sm font-medium text-zinc-300">
+                            {message.senderUsername}
+                          </span>
+                          <span className="text-xs text-zinc-500">
+                            {formatDistanceToNow(new Date(timestamp), {
+                              addSuffix: true,
+                            })}
+                          </span>
+                        </div>
+                      )}
                       <div
-                        className={`message-markdown text-sm wrap-break-word ${
-                          isOwnMessage ? 'text-white' : 'text-zinc-50'
+                        className={`px-4 py-2 rounded-2xl ${
+                          isOwnMessage
+                            ? "bg-emerald-600 text-white"
+                            : "bg-zinc-800 text-zinc-50"
                         }`}
                       >
-                        <ReactMarkdown
-                          remarkPlugins={[remarkGfm]}
-                          rehypePlugins={[rehypeHighlight]}
-                          components={{
-                            p: ({ children }) => <p className="whitespace-pre-wrap">{children}</p>,
-                            pre: ({ children }) => (
-                              <pre className="message-codeblock my-2 overflow-x-auto rounded-lg p-3">{children}</pre>
-                            ),
-                            code: ({ className, children, ...props }) => {
-                              const isBlockCode = !!className;
+                        <div
+                          className={`message-markdown text-sm wrap-break-word ${
+                            isOwnMessage ? "text-white" : "text-zinc-50"
+                          }`}
+                        >
+                          <ReactMarkdown
+                            remarkPlugins={[remarkGfm]}
+                            rehypePlugins={[rehypeHighlight]}
+                            components={{
+                              p: ({ children }) => (
+                                <p className="whitespace-pre-wrap">
+                                  {children}
+                                </p>
+                              ),
+                              pre: ({ children }) => (
+                                <CopyableCodeBlock>
+                                  {children}
+                                </CopyableCodeBlock>
+                              ),
+                              code: ({ className, children, ...props }) => {
+                                const isBlockCode = !!className;
 
-                              if (isBlockCode) {
+                                if (isBlockCode) {
+                                  return (
+                                    <code className={className} {...props}>
+                                      {children}
+                                    </code>
+                                  );
+                                }
+
                                 return (
-                                  <code className={className} {...props}>
+                                  <code
+                                    className="rounded bg-zinc-900/70 px-1.5 py-0.5 text-zinc-100"
+                                    {...props}
+                                  >
                                     {children}
                                   </code>
                                 );
-                              }
-
-                              return (
-                                <code className="rounded bg-zinc-900/70 px-1.5 py-0.5 text-zinc-100" {...props}>
-                                  {children}
-                                </code>
-                              );
-                            },
-                          }}
-                        >
-                          {message.text}
-                        </ReactMarkdown>
+                              },
+                            }}
+                          >
+                            {message.text}
+                          </ReactMarkdown>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -432,7 +685,10 @@ export default function RoomPage() {
 
       {/* Message Input */}
       <div className="shrink-0">
-        <MessageInput onSendMessage={handleSendMessage} disabled={!isConnected} />
+        <MessageInput
+          onSendMessage={handleSendMessage}
+          disabled={!isConnected}
+        />
       </div>
     </div>
   );
