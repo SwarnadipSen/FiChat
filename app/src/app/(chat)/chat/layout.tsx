@@ -106,7 +106,7 @@ export default function ChatLayout({ children }: { children: React.ReactNode }) 
     <>
       <div className="hidden h-screen md:block">
         <ResizablePanelGroup orientation="horizontal" className="h-screen bg-zinc-950">
-          <ResizablePanel defaultSize="13%" minSize="12%" maxSize="38%">
+          <ResizablePanel defaultSize="18%" minSize="16%" maxSize="38%">
             <ChatSidebar />
           </ResizablePanel>
           <ResizableHandle withHandle className="bg-zinc-800/80 hover:bg-zinc-700" />
