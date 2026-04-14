@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuthStore } from '@/store/authStore';
@@ -9,7 +9,7 @@ import { useSocket } from '@/providers/SocketProvider';
 import { messageAPI } from '@/lib/apiService';
 import { toast } from 'sonner';
 import MessageInput from '@/components/chat/MessageInput';
-import { Message, PresenceUpdateEvent, RoomMember } from '@/lib/types';
+import { Message, PresenceUpdateEvent, RoomMember, SocketError, UserJoinedEvent } from '@/lib/types';
 import { formatDistanceToNow } from 'date-fns';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getInitials, getRandomAvatarUrl } from '@/lib/avatar';
@@ -21,6 +21,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import { useCallStore } from '@/store/callStore';
+import { getErrorMessage } from '@/lib/errors';
 
 export default function RoomPage() {
   const params = useParams();
@@ -50,10 +51,33 @@ export default function RoomPage() {
   } = useCallStore();
   
   const room = rooms.find((r) => r.id === roomId);
-  const roomMessages = messages[roomId] || [];
+  const roomMessages = useMemo(() => messages[roomId] || [], [messages, roomId]);
   const isCallActive = callStartedAt !== null;
   const isCurrentRoomCallActive = isCallActive && activeRoomId === roomId;
   const isInCall = !!user?.id && isCurrentRoomCallActive && callParticipantIds.includes(user.id);
+
+  const loadMessages = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const data = await messageAPI.getMessages(roomId, 1, 50);
+      setMessages(roomId, data.messages.reverse());
+      setCurrentPage(1);
+      setHasMoreMessages(data.pagination.hasMore);
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, 'Failed to load messages'));
+    } finally {
+      setIsLoading(false);
+    }
+  }, [roomId, setMessages]);
+
+  const loadMembers = useCallback(async () => {
+    try {
+      const data = await roomAPI.getRoomMembers(roomId);
+      setMembers(data.members);
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, 'Failed to load room members'));
+    }
+  }, [roomId]);
 
   useEffect(() => {
     if (roomId) {
@@ -63,7 +87,7 @@ export default function RoomPage() {
       loadMessages();
       loadMembers();
     }
-  }, [roomId]);
+  }, [roomId, loadMessages, loadMembers]);
 
   useEffect(() => {
     if (!roomId) {
@@ -89,7 +113,7 @@ export default function RoomPage() {
         }
       };
 
-      const handleUserJoined = (data: any) => {
+      const handleUserJoined = (data: UserJoinedEvent) => {
         if (data.roomId === roomId && data.userId !== user?.id) {
           toast.info(`${data.username} joined the room`);
 
@@ -111,7 +135,7 @@ export default function RoomPage() {
         }
       };
 
-      const handleSocketError = (error: any) => {
+      const handleSocketError = (error: SocketError) => {
         toast.error(error.message);
       };
 
@@ -143,27 +167,13 @@ export default function RoomPage() {
         socket.off('presence_update', handlePresenceUpdate);
       };
     }
-  }, [socket, roomId, user?.id]);
+  }, [socket, roomId, user?.id, addMessage]);
 
   useEffect(() => {
     if (shouldStickToBottomRef.current && !isLoadingOlder) {
       scrollToBottom();
     }
-  }, [roomMessages]);
-
-  const loadMessages = async () => {
-    setIsLoading(true);
-    try {
-      const data = await messageAPI.getMessages(roomId, 1, 50);
-      setMessages(roomId, data.messages.reverse());
-      setCurrentPage(1);
-      setHasMoreMessages(data.pagination.hasMore);
-    } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to load messages');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  }, [roomMessages, isLoadingOlder]);
 
   const loadOlderMessages = async () => {
     if (isLoadingOlder || !hasMoreMessages) {
@@ -195,8 +205,8 @@ export default function RoomPage() {
         const newScrollHeight = scrollRef.current.scrollHeight;
         scrollRef.current.scrollTop = newScrollHeight - previousScrollHeight + previousScrollTop;
       });
-    } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to load older messages');
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, 'Failed to load older messages'));
     } finally {
       setIsLoadingOlder(false);
     }
@@ -215,15 +225,6 @@ export default function RoomPage() {
 
     if (nearTop && hasMoreMessages && !isLoadingOlder) {
       loadOlderMessages();
-    }
-  };
-
-  const loadMembers = async () => {
-    try {
-      const data = await roomAPI.getRoomMembers(roomId);
-      setMembers(data.members);
-    } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to load room members');
     }
   };
 

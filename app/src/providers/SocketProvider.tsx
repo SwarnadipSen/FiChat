@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { Socket } from 'socket.io-client';
 import { initSocket, disconnectSocket } from '@/lib/socket';
 import { useAuthStore } from '@/store/authStore';
@@ -18,44 +18,51 @@ const SocketContext = createContext<SocketContextType>({
 export const useSocket = () => useContext(SocketContext);
 
 export function SocketProvider({ children }: { children: React.ReactNode }) {
-  const [socket, setSocket] = useState<Socket | null>(null);
-  const [isConnected, setIsConnected] = useState(false);
+  const [, setSocketEventTick] = useState(0);
   const { token, isAuthenticated } = useAuthStore();
 
-  useEffect(() => {
-    if (isAuthenticated && token) {
-      const socketInstance = initSocket(token);
-
-      socketInstance.on('connect', () => {
-        console.log('Socket connected');
-        setIsConnected(true);
-      });
-
-      socketInstance.on('disconnect', () => {
-        console.log('Socket disconnected');
-        setIsConnected(false);
-      });
-
-      socketInstance.on('connect_error', (error) => {
-        console.error('Socket connection error:', error);
-        setIsConnected(false);
-      });
-
-      setSocket(socketInstance);
-
-      return () => {
-        disconnectSocket();
-        setSocket(null);
-        setIsConnected(false);
-      };
-    } else {
-      if (socket) {
-        disconnectSocket();
-        setSocket(null);
-        setIsConnected(false);
-      }
+  const socket = useMemo(() => {
+    if (!isAuthenticated || !token) {
+      return null;
     }
+
+    return initSocket(token);
   }, [isAuthenticated, token]);
+
+  const isConnected = Boolean(socket?.connected);
+
+  useEffect(() => {
+    if (!socket) {
+      disconnectSocket();
+      return;
+    }
+
+    const handleConnect = () => {
+      console.log('Socket connected');
+      setSocketEventTick((tick) => tick + 1);
+    };
+
+    const handleDisconnect = () => {
+      console.log('Socket disconnected');
+      setSocketEventTick((tick) => tick + 1);
+    };
+
+    const handleConnectError = (error: Error) => {
+      console.error('Socket connection error:', error);
+      setSocketEventTick((tick) => tick + 1);
+    };
+
+    socket.on('connect', handleConnect);
+    socket.on('disconnect', handleDisconnect);
+    socket.on('connect_error', handleConnectError);
+
+    return () => {
+      socket.off('connect', handleConnect);
+      socket.off('disconnect', handleDisconnect);
+      socket.off('connect_error', handleConnectError);
+      disconnectSocket();
+    };
+  }, [socket]);
 
   return (
     <SocketContext.Provider value={{ socket, isConnected }}>

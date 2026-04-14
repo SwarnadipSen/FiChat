@@ -22,10 +22,17 @@ export default function ChatLayout({ children }: { children: React.ReactNode }) 
   const mobileSidebarHistoryPushedRef = useRef(false);
 
   const isRoomRoute = useMemo(() => Boolean(pathname?.match(/^\/chat\/[^/]+$/)), [pathname]);
+  const showMobileSidebar = isMobile && (!isRoomRoute || isMobileSidebarOpen);
 
   useEffect(() => {
     initAuth();
-    setIsLoading(false);
+    const timeoutId = window.setTimeout(() => {
+      setIsLoading(false);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
   }, [initAuth]);
 
   useEffect(() => {
@@ -50,17 +57,6 @@ export default function ChatLayout({ children }: { children: React.ReactNode }) 
 
   useEffect(() => {
     if (!isMobile) {
-      setIsMobileSidebarOpen(false);
-      mobileSidebarHistoryPushedRef.current = false;
-      return;
-    }
-
-    setIsMobileSidebarOpen(!isRoomRoute);
-    mobileSidebarHistoryPushedRef.current = false;
-  }, [isMobile, isRoomRoute]);
-
-  useEffect(() => {
-    if (!isMobile) {
       return;
     }
 
@@ -76,7 +72,7 @@ export default function ChatLayout({ children }: { children: React.ReactNode }) 
   }, [isMobile]);
 
   const openMobileSidebar = () => {
-    if (!isMobile || isMobileSidebarOpen) {
+    if (!isMobile || showMobileSidebar) {
       return;
     }
 
@@ -137,7 +133,7 @@ export default function ChatLayout({ children }: { children: React.ReactNode }) 
 
         <div
           className={`absolute inset-0 z-50 transition-opacity duration-300 ${
-            isMobileSidebarOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
+            showMobileSidebar ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
           }`}
         >
           <div
@@ -147,7 +143,7 @@ export default function ChatLayout({ children }: { children: React.ReactNode }) 
           />
           <div
             className={`relative h-full w-full transition-transform duration-300 ease-out ${
-              isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-6'
+              showMobileSidebar ? 'translate-x-0' : '-translate-x-6'
             }`}
           >
             <ChatSidebar onClose={closeMobileSidebar} onRoomSelect={closeMobileSidebar} />

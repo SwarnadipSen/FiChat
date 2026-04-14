@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuthStore } from '@/store/authStore';
 import { authAPI } from '@/lib/apiService';
+import { getErrorMessage } from '@/lib/errors';
 import { toast } from 'sonner';
 import { Loader2, Lock, MessageCircle, User } from 'lucide-react';
 
@@ -35,8 +36,8 @@ export default function LoginPage() {
       toast.success('Logged in successfully');
       
       router.push('/chat');
-    } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Invalid credentials');
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, 'Invalid credentials'));
     } finally {
       setIsLoading(false);
     }

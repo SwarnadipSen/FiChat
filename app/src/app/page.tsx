@@ -11,7 +11,13 @@ export default function Home() {
 
   useEffect(() => {
     initAuth();
-    setIsLoading(false);
+    const timeoutId = window.setTimeout(() => {
+      setIsLoading(false);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
   }, [initAuth]);
 
   useEffect(() => {

@@ -34,7 +34,7 @@ export default function CallDock() {
     startOrJoinCall,
   } = useCallStore();
 
-  const [elapsedMs, setElapsedMs] = useState(0);
+  const [nowTimestamp, setNowTimestamp] = useState(() => Date.now());
   const [isMobile, setIsMobile] = useState(false);
 
   const isCallActive = !!activeRoomId && !!callStartedAt;
@@ -51,16 +51,17 @@ export default function CallDock() {
 
   useEffect(() => {
     if (!isCallActive || !callStartedAt) {
-      setElapsedMs(0);
       return;
     }
 
-    const tick = () => setElapsedMs(Date.now() - callStartedAt);
-    tick();
-    const timerId = window.setInterval(tick, 1000);
+    const timerId = window.setInterval(() => {
+      setNowTimestamp(Date.now());
+    }, 1000);
 
     return () => window.clearInterval(timerId);
   }, [isCallActive, callStartedAt]);
+
+  const elapsedMs = isCallActive && callStartedAt ? Math.max(0, nowTimestamp - callStartedAt) : 0;
 
   const elapsedLabel = useMemo(() => {
     const totalSeconds = Math.floor(elapsedMs / 1000);
@@ -75,8 +76,14 @@ export default function CallDock() {
     return [minutes, seconds].map((value) => value.toString().padStart(2, '0')).join(':');
   }, [elapsedMs]);
 
-  const members = activeRoomId ? roomMembersByRoom[activeRoomId] || [] : [];
-  const onlineUserIds = activeRoomId ? onlineUserIdsByRoom[activeRoomId] || [] : [];
+  const members = useMemo(
+    () => (activeRoomId ? roomMembersByRoom[activeRoomId] || [] : []),
+    [activeRoomId, roomMembersByRoom]
+  );
+  const onlineUserIds = useMemo(
+    () => (activeRoomId ? onlineUserIdsByRoom[activeRoomId] || [] : []),
+    [activeRoomId, onlineUserIdsByRoom]
+  );
 
   const participants = useMemo<CallParticipant[]>(() => {
     const byId = new Map(members.map((member) => [member.id, member]));

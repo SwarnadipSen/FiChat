@@ -12,6 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { roomAPI } from '@/lib/apiService';
+import { getErrorMessage } from '@/lib/errors';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 
@@ -51,8 +52,8 @@ export default function JoinRoomDialog({
       
       // Navigate to the room
       router.push(`/chat/${data.room.id}`);
-    } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to join room');
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, 'Failed to join room'));
     } finally {
       setIsLoading(false);
     }

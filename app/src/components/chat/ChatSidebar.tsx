@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { Plus, Search, LogOut, Hash, ChevronUp, UserCircle, X, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,7 @@ import { Separator } from '@/components/ui/separator';
 import { useAuthStore } from '@/store/authStore';
 import { useChatStore } from '@/store/chatStore';
 import { roomAPI } from '@/lib/apiService';
+import { getErrorMessage } from '@/lib/errors';
 import { toast } from 'sonner';
 import CreateRoomDialog from './CreateRoomDialog';
 import JoinRoomDialog from './JoinRoomDialog';
@@ -38,12 +39,24 @@ export default function ChatSidebar({ onClose, onRoomSelect }: ChatSidebarProps)
   const [isJoinOpen, setIsJoinOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
+  const loadRooms = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const data = await roomAPI.getRooms();
+      setRooms(data.rooms);
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, 'Failed to load rooms'));
+    } finally {
+      setIsLoading(false);
+    }
+  }, [setRooms]);
+
   const formatMemberCount = (count: number) =>
     new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 0 }).format(count);
 
   useEffect(() => {
     loadRooms();
-  }, []);
+  }, [loadRooms]);
 
   useEffect(() => {
     // Extract roomId from pathname
@@ -54,18 +67,6 @@ export default function ChatSidebar({ onClose, onRoomSelect }: ChatSidebarProps)
       setActiveRoom(null);
     }
   }, [pathname, setActiveRoom]);
-
-  const loadRooms = async () => {
-    setIsLoading(true);
-    try {
-      const data = await roomAPI.getRooms();
-      setRooms(data.rooms);
-    } catch (error: any) {
-      toast.error('Failed to load rooms');
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleLogout = () => {
     logout();
